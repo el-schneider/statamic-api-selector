@@ -1,0 +1,19 @@
+{
+    "name": "el-schneider/statamic-api-selector",
+    "autoload": {
+        "psr-4": {
+            "ElSchneider\\StatamicApiSelector\\": "src"
+        }
+    },
+    "extra": {
+        "statamic": {
+            "name": "Statamic Api Selector",
+            "description": "Statamic Api Selector addon"
+        },
+        "laravel": {
+            "providers": [
+                "ElSchneider\\StatamicApiSelector\\ServiceProvider"
+            ]
+        }
+    }
+}
