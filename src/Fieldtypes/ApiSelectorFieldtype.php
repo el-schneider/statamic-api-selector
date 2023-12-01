@@ -215,7 +215,7 @@ class ApiSelectorFieldtype extends Fieldtype
                 $data = json_decode((string) $response->getBody(), true);
 
                 // limit data to max 100 items
-                $data = array_slice($data, 0, 5);
+                // $data = array_slice($data, 0, 5);
 
                 // check if "item_thumbnail" is set
                 // then check if the key exists in the data
