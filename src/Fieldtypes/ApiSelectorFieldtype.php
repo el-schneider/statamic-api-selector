@@ -216,7 +216,7 @@ class ApiSelectorFieldtype extends Fieldtype
 
             $data = json_decode((string) $response->getBody(), true);
 
-            $data = array_slice($data, 0, 20);
+            // $data = array_slice($data, 0, 20);
 
             if ($this->config('item_thumbnail') && $data) {
                 $thumbnailKey = $this->config('item_thumbnail');
