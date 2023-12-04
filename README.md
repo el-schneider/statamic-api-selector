@@ -1,23 +1,17 @@
 # Statamic Api Selector
 
-> Statamic Api Selector is a Statamic addon that does something pretty neat.
-
-## Features
-
-This addon does:
-
-- This
-- And this
-- And even this
+> Utilise API endpoints for your Select Fieldtype options.
 
 ## How to Install
 
-You can search for this addon in the `Tools > Addons` section of the Statamic control panel and click **install**, or run the following command from your project root:
-
-``` bash
+```bash
 composer require el-schneider/statamic-api-selector
 ```
 
 ## How to Use
 
-Here's where you can explain how to use this wonderful addon.
+![an quick demo of api selector](demo.gif)
+
+## Thanks to
+
+[laraluke](https://github.com/laraluke) for his [statamic-api-select](https://github.com/laraluke/statamic-api-select)
