@@ -4,6 +4,8 @@ namespace ElSchneider\StatamicApiSelector\Fieldtypes;
 
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
+use Statamic\Facades\Image;
 use Statamic\Fields\Fieldtype;
 
 class ApiSelectorFieldtype extends Fieldtype
@@ -121,6 +123,7 @@ class ApiSelectorFieldtype extends Fieldtype
         return [
             'endpoint' => $this->getEndpoint(),
             'options' => $this->getOptions(),
+            'cacheKey' => $this->getCacheKey(),
         ];
     }
 
@@ -205,64 +208,60 @@ class ApiSelectorFieldtype extends Fieldtype
 
     private function getData()
     {
-        $key = $this->handle() . $this->getEndpoint();
+        $key = $this->getCacheKey();
         $minutes = $this->config('cache_minutes');
 
-        try {
-            if (!$data = Cache::get($key)) {
-                $response = app(Client::class)->get($this->getEndpoint());
+        return Cache::remember($key, now()->addMinutes($minutes), function () {
+            $response = app(Client::class)->get($this->getEndpoint());
 
-                $data = json_decode((string) $response->getBody(), true);
+            $data = json_decode((string) $response->getBody(), true);
 
-                // limit data to max 100 items
-                // $data = array_slice($data, 0, 5);
+            $data = array_slice($data, 0, 20);
 
-                // check if "item_thumbnail" is set
-                // then check if the key exists in the data
-                // compile a list of image URLs
-                if ($this->config('item_thumbnail') && $data) {
-                    $thumbnailKey = $this->config('item_thumbnail');
+            if ($this->config('item_thumbnail') && $data) {
+                $thumbnailKey = $this->config('item_thumbnail');
 
-                    $data = collect($data)
-                        ->map(function ($item) use ($thumbnailKey) {
-                            if (array_key_exists($thumbnailKey, $item)) {
-                                $imageUrl = $item[$thumbnailKey];
-
-                                // check if the imageUrl is already cached in glide
-                                // if so, use that url instead
-
-                                $url = route('statamic-api-selector.thumbnail', [
-                                    'url' => $imageUrl,
-                                ]);
-
-                                // http request to get the thumbnail
-                                $response = app(Client::class)->get($url);
-
-                                // add the thumbnail url to the item
-                                $item['thumbnailUrl'] = json_decode((string) $response->getBody(), true)['thumbnailUrl'];
-                            }
-
-                            return $item;
-                        })
-                        ->all();
-                }
-
-                if ($minutes > 0) {
-                    Cache::put($key, $data, now()->addMinutes($minutes));
-                }
-            }
-        } catch (\Exception $e) {
-            // If there's an error and we have cached data, return the cached data
-
-            if ($this->config('use_stale_cache') && $data = Cache::get($key)) {
-                return $data;
+                $data = collect($data)->map(function ($item) use ($thumbnailKey) {
+                    if (isset($item[$thumbnailKey])) {
+                        $item['thumbnailUrl'] = $this->getThumbnailUrl($item[$thumbnailKey]);
+                    }
+                    return $item;
+                })->all();
             }
 
-            // If there's no cached data, rethrow the exception
-            throw $e;
-        }
+            return $data;
+        });
+    }
 
-        return $data;
+    private function getThumbnailUrl($imageUrl)
+    {
+        return Cache::remember('thumbnail_' . md5($imageUrl), now()->addMinutes($this->config('cache_minutes')), function () use ($imageUrl) {
+            // Fetch the image from the external URL
+            $imageContents = app(Client::class)->get($imageUrl)->getBody()->getContents();
+
+            // Store the image in the local storage within the public path
+            $filename = basename(parse_url($imageUrl, PHP_URL_PATH));
+
+            if (!pathinfo($filename, PATHINFO_EXTENSION)) {
+                $finfo = new \finfo(FILEINFO_MIME_TYPE);
+                $mimeType = $finfo->buffer($imageContents);
+                $extension = explode('/', $mimeType)[1]; // Example: 'jpeg' for 'image/jpeg'
+                $filename .= '.' . $extension;
+            }
+
+            $path = 'api-selector-thumbnails/' . $filename;
+            Storage::disk('public')->put($path, $imageContents);
+
+            // The 'url' method of the Storage facade generates a URL for the stored file
+            $publicPath = Storage::disk('public')->url($path);
+
+            // Use Glide to generate a signed URL to the transformed image
+            $params = ['w' => 50, 'h' => 50, 'fit' => 'crop'];
+
+            $signedUrl = Image::manipulate($publicPath, $params, true); // The third parameter 'true' ensures the URL is signed
+
+            return $signedUrl;
+        });
     }
 
     private function getEndpoint()
@@ -275,5 +274,10 @@ class ApiSelectorFieldtype extends Fieldtype
             default:
                 return $endpoint;
         }
+    }
+
+    private function getCacheKey()
+    {
+        return $this->handle() . $this->getEndpoint();
     }
 }
